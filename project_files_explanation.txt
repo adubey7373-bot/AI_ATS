@@ -1,0 +1,188 @@
+ 
+AI Resume Analyzer — Project file explanations
+=============================================
+
+This document explains the main folders and files in the project and gives short descriptions of every UI component in `app/components`. It also includes a brief "contract" (inputs / outputs / responsibilities) for the main UI pieces so developers can quickly understand how they fit together.
+
+General project files (root)
+----------------------------
+- `package.json` — npm metadata and scripts (dev, build, preview). Lists project dependencies.
+- `Dockerfile` — container image definition for deployment.
+- `tsconfig.json` — TypeScript compiler settings.
+- `vite.config.ts` — Vite build tooling configuration.
+- `react-router.config.ts` — (project-specific) React Router configuration used by route setup.
+- `README.md` — human-facing project overview and setup instructions.
+
+App folder (`app/`)
+-------------------
+Contains the app source: routes, components and small helper libs.
+
+- `root.tsx` — application root. Mounts the React tree, sets up global providers (Puter), error boundaries and the base HTML layout.
+- `routes.ts` — route definitions used by React Router; wires pages and data loaders to paths.
+- `app.css` — global styling rules and design tokens used across components.
+
+app/components — explanation and small contracts
+------------------------------------------------
+Below are the components found in `app/components`. For each component I list the purpose, typical props/inputs, outputs/side-effects, and notes about edge-cases or integration points.
+
+1) `Accordion.tsx`
+	- Purpose: Generic collapsible panel component used to show/hide content sections.
+	- Inputs/props: title/label (string), defaultOpen? (boolean), children (ReactNode)
+	- Outputs/side-effects: none (pure UI). May call a callback when toggled if such prop exists.
+	- Notes/edge cases: Should support keyboard accessibility (Enter/Space to toggle). Large content should be scrollable; measure height or use CSS transitions for smoothness.
+
+2) `ATS.tsx`
+	- Purpose: Displays ATS (Applicant Tracking System) related results: score, highlights, and suggestions for improving resume ATS compatibility.
+	- Inputs/props: atsResult (object containing score:number, issues: string[], suggestions: string[]), concise? (boolean)
+	- Outputs: Renders badges, lists, and optionally emits analytics events when user expands details.
+	- Notes: Keep long suggestion lists truncated with an expand option. Ensure numeric score is validated (0–100).
+
+3) `Details.tsx`
+	- Purpose: Show detailed information about a particular resume or job matching result. Used on resume view pages.
+	- Inputs/props: resume (object with fields like name, email, sections[]), onEdit? (callback), onDelete? (callback)
+	- Outputs: Renders full resume metadata and parsed sections. Calls callbacks only when user triggers actions.
+	- Notes: Must handle missing fields gracefully (e.g., no email). When rendering parsed HTML/text, sanitize or treat as plain text to avoid injection.
+
+4) `FileUploader.tsx`
+	- Purpose: UI for uploading resumes (drag-and-drop or file dialog). Accepts PDFs and common doc formats.
+	- Inputs/props: accept (mime types), onFilesSelected(files: File[]), multiple? (boolean)
+	- Outputs/side-effects: Reads the dropped file(s), optionally creates previews (images), and calls `onFilesSelected` with File objects or parsed data.
+	- Notes/edge cases: Provide clear validation messages for unsupported file types, large files, or failed reads. Use PDF worker (public/pdf.worker.min.mjs) for parsing PDFs without blocking UI.
+
+5) `Navbar.tsx`
+	- Purpose: Top navigation bar with links to Home, Upload, Sign in/out, and other pages.
+	- Inputs/props: currentUser? (object), onSignOut? (callback)
+	- Outputs: Emits navigation actions, calls auth callbacks.
+	- Notes: Mobile responsive; collapse to hamburger menu on small widths.
+
+6) `ResumeCard.tsx`
+	- Purpose: Small card preview for a resume used in lists or galleries.
+	- Inputs/props: resumeSummary (title, subText, thumbnailUrl), onOpen/resumeId
+	- Outputs: Click opens the resume details or navigates to resume page.
+	- Notes: Prefetch detailed resume data on hover/click for snappier UX.
+
+7) `ScoreBadge.tsx`
+	- Purpose: Small colored badge indicating a score level (good/warning/bad).
+	- Inputs/props: score (number) or level ('good'|'warn'|'bad'), size?
+	- Outputs: Purely visual.
+	- Notes: Map numeric ranges to discrete levels consistently across the app.
+
+8) `ScoreCircle.tsx`
+	- Purpose: Circular progress indicator for a numeric score.
+	- Inputs/props: value (0-100), size, strokeWidth, color mapping function
+	- Outputs: SVG/CSS animated circle.
+	- Notes: Use aria-label for accessibility; use reduced-motion preference for animations.
+
+9) `ScoreGauge.tsx`
+	- Purpose: Gauge-style display for score (semi-circle or bar gauge).
+	- Inputs/props: value (0-100), thresholds
+	- Outputs: Visual gauge + numeric label.
+	- Notes: Consider animating once when mounted; avoid re-animating on every prop update unless desired.
+
+10) `Summary.tsx`
+	 - Purpose: High-level summary of analysis results for a resume: top issues, overall score, and call-to-actions.
+	 - Inputs/props: analysis (object with overallScore, highlights, suggestedChanges)
+	 - Outputs: Rendered summary and clickable suggestions.
+	 - Notes: Keep it concise by default with an option to expand into Details.
+
+app/lib — small utilities
+-------------------------
+- `pdf2img.ts` — helpers to convert PDF pages into images for previews. Uses the included `pdf.worker.min.mjs` (public) to offload parsing.
+- `puter.ts` — wrappers around Puter SDK (authentication, storage, AI action wrappers). Any interaction with Puter should go through this file to centralize configuration and tokens.
+- `utils.ts` — general helper functions (formatting, small shared utilities used across components).
+
+app/routes — page-level components
+---------------------------------
+- `auth.tsx` — authentication flow (sign-in / sign-up) using Puter; may display OAuth or email flows.
+- `home.tsx` — main landing page; shows upload CTA, recent resumes, and high-level information.
+- `resume.tsx` — resume viewer page that shows `ResumeCard`, `Details`, `ATS`, and `Summary` for a single resume.
+- `upload.tsx` — page that presents `FileUploader` and handles upload flow + validation.
+- `wipe.tsx` — utility page for clearing user data (used for testing or dev). Should be guarded behind auth.
+
+constants/
+-----------
+- `index.ts` — central place for app-wide constants: acceptable file types, score thresholds, limits, and smaller config values.
+
+public/
+------
+- Static assets served directly by the app (icons, images, `pdf.worker.min.mjs` used for PDF parsing in the browser).
+
+types/
+------
+- `index.d.ts`, `puter.d.ts` — TypeScript ambient declarations and types for third-party libraries (like Puter) or shared app types.
+
+Developer notes & small checklist
+---------------------------------
+- When adding a new component, include a small "contract" comment at top describing props and expected data shapes.
+- Sanitize any parsed resume text before rendering. Treat unknown fields as optional.
+- Keep UI components small and focused: pages should compose small components rather than include a lot of logic.
+
+If you'd like, I can also:
+- Expand this file to include the props/types for each component by reading the `.tsx` files and extracting prop definitions.
+- Generate a markdown version (`docs/components.md`) with links to source files.
+
+Project Dependencies Explained
+---------------------------
+This section explains the key dependencies used in the project and why they're necessary.
+
+Main Dependencies:
+----------------
+1. React Core & DOM (`react`, `react-dom`)
+   - The foundation of our UI - React is used for building the component-based interface
+   - React DOM handles rendering these components to the web browser
+   - Using version 19+ for latest features like concurrent rendering and suspense
+
+2. Routing (`react-router`, `@react-router/node`, `@react-router/serve`)
+   - Handles client-side navigation between pages
+   - Provides server-side rendering capabilities
+   - Manages URL states and page transitions
+   - Node and serve packages enable server-side routing features
+
+3. PDF Processing (`pdfjs-dist`)
+   - Mozilla's PDF.js for parsing and rendering PDF resumes
+   - Enables extracting text and creating preview images from uploaded PDFs
+   - Runs in the browser to handle PDFs without server processing
+
+4. File Upload (`react-dropzone`)
+   - Provides drag-and-drop file upload functionality
+   - Handles file validation and preview generation
+   - Makes the upload experience smooth and user-friendly
+
+5. State Management (`zustand`)
+   - Lightweight state management for React
+   - More straightforward than Redux for our needs
+   - Manages global app state (user data, resume lists, etc.)
+
+6. Styling Utilities:
+   - `clsx` and `tailwind-merge`: Smart CSS class combination and deduplication
+   - `tailwindcss`: Utility-first CSS framework for rapid UI development
+   - `tw-animate-css`: Animation utilities for Tailwind
+
+Development Dependencies:
+----------------------
+1. TypeScript Stack:
+   - `typescript`: Static typing for better code quality
+   - `@types/*`: Type definitions for React and Node.js
+   - Essential for catching errors early and improving maintainability
+
+2. Build Tools:
+   - `vite`: Modern, fast bundler and development server
+   - `vite-tsconfig-paths`: Path aliases support in Vite
+   - `@tailwindcss/vite`: Tailwind integration for Vite
+
+3. Development Utilities:
+   - `@react-router/dev`: Development tools for React Router
+   - Various TypeScript types for better development experience
+
+The combination of these dependencies enables:
+- Fast development with hot reloading (Vite)
+- Type-safe code (TypeScript)
+- Smooth file uploads (Dropzone)
+- PDF processing (PDF.js)
+- Clean, maintainable styling (Tailwind)
+- Efficient state management (Zustand)
+- Modern routing features (React Router)
+
+End of explanations.
+
+
